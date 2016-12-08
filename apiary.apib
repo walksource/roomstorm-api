@@ -1,0 +1,1559 @@
+FORMAT: 1A
+HOST: http://polls.apiblueprint.org/
+
+# Roomstorm
+
+Roomstorm API
+
+Most of the collections endpoints have pagination available. It's turned on by specifying GET param `page_size`.
+The response will include headers `X-Total-Count and Link` - in the form of
+`<http://testserver/backend/v1/users/?page=3&page_size=2; rel="next">, <http://testserver/backend/v1/users/?page_size=2; rel="prev">`
+more in https://github.com/walksource/roomstorm/blob/master/roomstorm/api/views.py#L48
+
+## Bootstrap [/backend/v1/bootstrap/]
+
+### Returns usable endpoints and logged in user [GET]
+
++ Response 200 (application/json)
+    
+    + Body
+    
+            {
+                "endpoints": {
+                    "auth": "http://localhost:8000/backend/v1/auth/",
+                    "select": "http://localhost:8000/backend/v1/select/",
+                    "users": "http://localhost:8000/backend/v1/users/",
+                    "organizations": "http://localhost:8000/backend/v1/organizations/",
+                    "hotels": "http://localhost:8000/backend/v1/hotels/{?lat,lng,radius,type}",
+                    "bookings": "http://localhost:8000/backend/v1/bookings/",
+                    "sold-rooms": "http://localhost:8000/backend/v1/sold-rooms/",
+                    "airport-search": "http://localhost:8000/backend/v1/airport-search/",
+                    "vouchers": "http://localhost:8000/backend/v1/vouchers/{id}",
+                    "vacancies": "http://localhost:8000/backend/v1/vacancies/",
+                    "rooms": "http://localhost:8000/backend/v1/rooms/",
+                    "rooms-detail": "http://localhost:8000/backend/v1/rooms/detail/",
+                    "buy": "http://localhost:8000/backend/v1/buy/",
+                    "guestbuy": "http://localhost:8000/backend/v1/guestbuy/"
+                },
+                "data": {
+                    "user": {
+                        "id": "5",
+                        "resource": "http://localhost:8000/backend/v1/users/5",
+                        "created": "2015-10-02T12:26:19.892950Z",
+                        "updated": "2015-10-02T12:26:19.893286Z",
+                        "email": "john-von-hotel@roomstorm.com",
+                        "name": "John von Hotel",
+                        "admin": false,
+                        "access_level": "airport manager",
+                        "organizations": "http://localhost:8000/backend/v1/users/5/organizations/",
+                    },
+                    "links": {
+                        "user-management": "http://localhost:8000/backend/users/",
+                        "password-reset": "http://localhost:8000/backend/admin/password_reset/",
+                        "password-change": "http://localhost:8000/backend/admin/password_change/"
+                    }
+                }
+            }
+
+
+## Auth Login [/backend/v1/auth/]
+
+### Authenticate via username/password [POST]
+
+this endpoint will validate username/password combination and respond with JWT (json web token) and sesion cookie headers.
+
++ Request (application/json)
+
+        {
+            "username": "username@roomstorm.com",
+            "password": "passw0rd"
+        }
+
++ Response 200 (application/json)
+
+    + Headers
+
+        Set-Cookie: csrftoken=CSRFTOKEN; expires=Mon, 24-Oct-2016 21:41:30 GMT; Max-Age=31449600; Path=/
+        Set-Cookie: sessionid="SESSIONID"; expires=Mon, 09-Nov-2015 21:41:30 GMT; httponly; Max-Age=1209600; Path=/
+
+    + Body
+
+            {
+                "token":"TOKEN",
+                "expires":"2015-10-27T21:41:30Z",
+                "payload": {
+                    "username":"username@roomstorm.com",
+                    "user_id":1,
+                    "orig_iat":1445895690,
+                    "email":"username@roomstorm.com",
+                    "exp":1445982090
+                },
+                "user":"http://localhost:8000/backend/v1/users/1"
+            }
+
+
+## Bookings [/backend/v1/bookings/{?start_date,end_date,created_after,created_before,seller_hotel,buyer_airports_airport,hotel_city,guest_bookings,airline_bookings,sort_by,sort_order,csv}]
+
++ Parameters
+    + start_date (optional) - filter booking starting after this date, example: 2016-01-14
+    + end_date (optional) - filter booking ending before this date, example: 2016-01-15
+    + created_after (optional) - filter bookings created after this datetime, example: 2016-01-15T20:00 format `YYYY-MM-DDThh:mm[:ss[.uuuuuu]][+HH:MM|-HH:MM|Z]`
+    + created_before (optional) - filter bookings created before this datetime, example: 2016-01-15T20:00 format `YYYY-MM-DDThh:mm[:ss[.uuuuuu]][+HH:MM|-HH:MM|Z]`
+    + seller_hotel (optional) - filter by booking's hotel example: http://localhost:8000/backend/v1/hotels/2
+    + hotel_city (optional) - filter by booking's hotel's city case insensitive everywhere, example: Fran - will find San Francisco
+    + buyer_airports_airport (optional) - filter by the airport doing the buy example: http://localhost:8000/backend/v1/airports-airport/2
+    + guest_bookings (optional) - only get Guest app bookings
+    + airline_bookings (optional) - only get Airline app bookings
+    + free_text - filter any bookings containing this case insensitive free text in hotel or guest name
+    + agent_name - filter by booking's Airline agent name
+    + sort_by (optional) - field to sort by - [start_date, end_date]
+    + sort_order (optional) - sort order, default desc - [asc, desc]
+    + select (optional) - show bookings only made with specified select, example: http://localhost:8000/backend/v1/select/7
+    + csv (optional) - if present the response will be a csv dowload export of some fields
+
+When using `cancellation_info` take the first item in the list and check if the current UTC time is before the
+one in `until`. If so, the cancellation will cost the `price` specified.
+If this is not true and current time is ahead (past) of `until`, check the same condition with the next item
+in the list. Value of `null` means that the cancellation is not for free but the whole price of
+booking - aka not cancelable.
+
++ Response 200 (application/json)
+
+    + Body
+    
+            [
+                {
+                    "id": "1",
+                    "resource": "http://localhost:8000/backend/v1/bookings/1",
+                    "created": "2015-10-02T12:34:49.732251Z",
+                    "updated": "2015-10-02T12:34:49.732269Z",
+                    "status": "ok",
+                    "start_date": "2015-10-02",
+                    "end_date": "2015-10-03",
+                    "buyer_airports_airport": "http://localhost:8000/backend/v1/airports-airport/1",
+                    "buyer_organization": "http://localhost:8000/backend/v1/organizations/5",
+                    "seller_hotel": {
+                        "resource": "http://localhost:8000/backend/v1/hotels/28950",
+                        "name": "Hotel San Francisco Financial District",
+                        "address": {
+                            "city": "SAN FRANCISCO",
+                            "zip": "94066",
+                            "country": "US",
+                            "state": "",
+                            "line_1": "1550 EL CAMINO REAL",
+                            "line_2": ""
+                        }
+                    },
+                    "price": {
+                        "total": 364.58,
+                        "currency": "USD",
+                        "fees": {
+                            "surcharges": [
+                                {
+                                    "name":"Service Fee",
+                                    "amount": 33.14
+                                }
+                            ],
+                            "hotel_fees": []
+                        },
+                        "nightly_rate_total": null
+                    },
+                    "reservation_number": "234-23232323",
+                    "provider": "internal",
+                    "provider_data": {
+                        "supplier": {
+                            "vat_number": "592952685",
+                            "name": "HOTELBEDS USA"
+                        },
+                        "purchase_token": "1234567890A",
+                        "board_type": "ROOM ONLY",
+                        "seller_comments": [
+                            "- The person whose name is on the reservation must be at least 18\n                                years of age to check in.\n                                - Rollaway beds are available based upon availability for an additional fee of $25* +tax\n                                per day, payable locally.\n                                - Valet parking is based upon availability and at a fee.\n                                - Smoking is strictly prohibited in all guest rooms and public areas of the hotel. An\n                                automatic cleaning fee of $350* usd per night will be applied to guest rooms where smoke\n                                is detected.\n                                - Check in time is 3:00pm-Check out time is 12:00 noon.\n                                - All bookings will be on floors 5-13\n                                *Amount subject to change without notice*\n                                . Wheelchair-accessible YES. . The lobby is being refurbished. (2015/06/29 -\n                                2015/11/23).. The restaurant is closed. (2015/07/05 - 2015/09/20).. The business room is\n                                being refurbished. (2015/06/15 - 2015/08/15).\n                            "
+                        ],
+                        "cancellation_info": [
+                            {
+                                "price": 0.0,
+                                "until": "2015-09-30T23:59:00Z"
+                            },
+                            {
+                                "price": 331.44,
+                                "until": "2015-10-02T23:59:59Z"
+                            }
+                        ],
+                        "room_type": "DOUBLE RUN OF HOUSE"
+                    },
+                    "user": "http://localhost:8000/backend/v1/users/9",
+                    "room": {
+                        "room_type": "Double King Size",
+                        "guest_name": "Butch Coolic",
+                        "guest_email": "b@c.cz",
+                        "guest_phone": "+420-605-605-605",
+                        "guest_pnr": "1565135",
+                        "adult_guests": 2,
+                        "child_ages": [2, 4]
+                    },
+                    "confirmation_url": "http://localhost:8000/backend/v1/vouchers/ce87f64b4f574e3795f9ed6a41f1e751",
+                    "cancellation_info": [
+                        {
+                            "price": 0.0,
+                            "until": "2015-10-02T13:34:49.732251Z"
+                        },
+                        {
+                            "price": 0.0,
+                            "until": "2015-09-30T23:59:00Z"
+                        },
+                        {
+                            "price": 331.44,
+                            "until": "2015-10-02T23:59:59Z"
+                        }
+                    ],
+                    "note": ""
+                },
+                {
+                    "id": "2",
+                    "resource": "http://localhost:8000/backend/v1/bookings/2",
+                    "created": "2015-10-02T12:34:49.733993Z",
+                    "updated": "2015-10-02T12:34:49.734011Z",
+                    "status": "ok",
+                    "start_date": "2015-10-02",
+                    "end_date": "2015-10-04",
+                    "buyer_airports_airport": "http://localhost:8000/backend/v1/airports-airport/1",
+                    "buyer_organization": "http://localhost:8000/backend/v1/organizations/5",
+                    "seller_hotel": {
+                        "resource": "http://localhost:8000/backend/v1/hotels/28950",
+                        "name": "Hotel San Francisco Financial District",
+                        "address": {
+                            "city": "SAN FRANCISCO",
+                            "zip": "94066",
+                            "country": "US",
+                            "state": "",
+                            "line_1": "1550 EL CAMINO REAL",
+                            "line_2": ""
+                        }
+                    },
+                    "price": {
+                        "total": 364.58,
+                        "fees": {
+                            "surcharges": [
+                                {
+                                    "name":"Service Fee",
+                                    "amount": 33.14
+                                }
+                            ],
+                            "hotel_fees": []
+                        },
+                        "nightly_rate_total": null
+                    },
+                    "reservation_number": "234-23232323",
+                    "provider": "internal",
+                    "provider_data": {
+                        "supplier": {
+                            "vat_number": "592952685",
+                            "name": "HOTELBEDS USA"
+                        },
+                        "purchase_token": "1234567890A",
+                        "board_type": "ROOM ONLY",
+                        "seller_comments": [
+                            "- The person whose name is on the reservation must be at least 18\n                                years of age to check in.\n                                - Rollaway beds are available based upon availability for an additional fee of $25* +tax\n                                per day, payable locally.\n                                - Valet parking is based upon availability and at a fee.\n                                - Smoking is strictly prohibited in all guest rooms and public areas of the hotel. An\n                                automatic cleaning fee of $350* usd per night will be applied to guest rooms where smoke\n                                is detected.\n                                - Check in time is 3:00pm-Check out time is 12:00 noon.\n                                - All bookings will be on floors 5-13\n                                *Amount subject to change without notice*\n                                . Wheelchair-accessible YES. . The lobby is being refurbished. (2015/06/29 -\n                                2015/11/23).. The restaurant is closed. (2015/07/05 - 2015/09/20).. The business room is\n                                being refurbished. (2015/06/15 - 2015/08/15).\n                            "
+                        ],
+                        "cancellation_info": [
+                            {
+                                "price": 0.0,
+                                "until": "2015-09-30T23:59:00Z"
+                            },
+                            {
+                                "price": 331.44,
+                                "until": "2015-10-02T23:59:59Z"
+                            }
+                        ],
+                        "room_type": "DOUBLE RUN OF HOUSE"
+                    },
+                    "user": "http://localhost:8000/backend/v1/users/9",
+                    "room": {
+                        "room_type": "Double King Size",
+                        "guest_name": "Harry Holy",
+                        "guest_email": "harry@sfpd.example.com",
+                        "guest_phone": "+420-555-555-555",
+                        "guest_pnr": "1337",
+                        "adult_guests": 2,
+                        "child_ages": [2, 4]
+                    },
+                    "confirmation_url": "http://localhost:8000/backend/v1/vouchers/ce87f64b4f574e3795f9ed6a41f1e751",
+                    "cancellation_info": [
+                        {
+                            "price": 0.0,
+                            "until": "2015-10-02T13:34:49.732251Z"
+                        },
+                        {
+                            "price": 0.0,
+                            "until": "2015-09-30T23:59:00Z"
+                        },
+                        {
+                            "price": 331.44,
+                            "until": "2015-10-02T23:59:59Z"
+                        }
+                    ],
+                    "note": ""
+                }
+            ]   
+
+## Sold Rooms [/backend/v1/sold-rooms/{?start_date,end_date,created_after,created_before,seller_hotel,buyer_airports_airport,hotel_city,guest_bookings,airline_bookings,sort_by,sort_order,csv}]
+
+The very same params and output as Bookings, but gives you booking for rooms you have sold.
+
+## Hotels [/backend/v1/hotels/]
+
+### Returns all hotels [GET]
+
+Can be filtered by distance from position - params: lat, lng, radius(by default 20 miles)
+Another filter is by organization - useful for local inventory, only local inventory hotels are returned.
+
+#### Hotelbeds
+
+The state field in address is empty.
+
++ Response 200 (application/json)
+
+    + Body
+    
+            [
+                {
+                    "id": "1",
+                    "created": "2015-10-02T12:49:24.732400Z",
+                    "updated": "2015-10-02T12:49:24.732431Z",
+                    "name": "InterContinental San Francisco",
+                    "description": "Beautiful hotel sporting jaw dropping views",
+                    "location": {
+                        "lat": 37.7818,
+                        "lng": -122.4047
+                    },
+                    "address": {
+                        "line_1": "888 Howard Street",
+                        "city": "San Francisco",
+                        "line_2": "",
+                        "zip": "94117",
+                        "state": "CA",
+                        "country": "US"
+                    },
+                    "timezone": "America/Los_Angeles",
+                    "organization": "http://localhost:8000/backend/v1/organizations/1",
+                    "resource": "http://localhost:8000/backend/v1/hotels/1",
+                    "provider": "testing",
+                    "rating": 3.4,
+                    "capacity": 550,
+                    "image_urls": [
+                        "http://www.hotelbeds.com/giata/23/230336/230336a_hb_l_001.jpg",
+                        "http://www.hotelbeds.com/giata/23/230336/230336a_hb_a_001.jpg",
+                        "http://www.hotelbeds.com/giata/23/230336/230336a_hb_w_001.jpg"
+                    ],
+                    "amenities": [
+                        {
+                            "name": "NO Wheelchair-accessible",
+                            "has_fee": false
+                        },
+                        {
+                            "name": "Restaurant",
+                            "has_fee": false
+                        },
+                        {
+                            "name": "Non-smoking area",
+                            "has_fee": false
+                        },
+                        {
+                            "name": "Wi-fi",
+                            "has_fee": false
+                        },
+                        {
+                            "name": "Wired Internet",
+                            "has_fee": false
+                        },
+                        {
+                            "name": "Hotel safe",
+                            "has_fee": false
+                        },
+                        {
+                            "name": "Continental breakfast",
+                            "has_fee": false
+                        }
+                    ]
+                }
+            ]
+
+    
+
+## AirportsAirport search [/backend/v1/airport-search/{name}]
+
+Returns found airports [GET]
+Searches in IATA airport code, city name, airport name.
+
++ Response 200 (application/json)
+
+    + Body
+
+            [
+                    {
+                        "id": "2",
+                        "name": "San Francisco Intl",
+                        "iata": "SFO",
+                        "city": "Millbrae",
+                        "location": {
+                            "lat": 37.618972,
+                            "lng": -122.374889
+                        },
+                        "timezone": "America/Los_Angeles"
+                        "utc_offset": -480,
+                    },
+                    {
+                        "id": "4",
+                        "name": "Sydney Intl",
+                        "iata": "SYD",
+                        "city": "Sydney",
+                        "location": {
+                            "lat": -33.946111,
+                            "lng": 151.177222
+                        },
+                        "timezone": "Australia/Sydney"
+                        "utc_offset": 660,
+                    }
+            ]
+
+
+## Organizations [/backend/v1/organizations/]
+
+Returns all organizations, only superuser has access, each user has it's own
+organization endpoint on `/backend/v1/users/{id}/organizations/`
+
++ Response 200 (application/json)
+
+    + Body
+
+            [
+                   {
+                       "id": "1",
+                       "resource": "http://localhost:8000/backend/v1/organizations/1",
+                       "name": "Roomstorm",
+                       "image": "https://s3-us-west-1.amazonaws.com/assets.roomstorm.com/200/rs.png",
+                       "payment_cards": []
+                   },
+                   {
+                       "id": "2",
+                       "resource": "http://localhost:8000/backend/v1/organizations/2",
+                       "name": "Airline Company",
+                       "image": "https://s3-us-west-1.amazonaws.com/assets.roomstorm.com/200/rs.png",
+                       "payment_cards": [
+                            {
+                                "id": "2",
+                                "resource": "http://localhost:8000/backend/v1/payment-card/2",
+                                "name": "Second card",
+                                "airports_airport": "http://localhost:8000/backend/v1/airports-airport/1"
+                            },
+                            {
+                                "id": "1",
+                                "resource": "http://localhost:8000/backend/v1/payment-card/2",
+                                "name": "Default card",
+                                "airports_airport": null
+                            }
+                        ]
+                   }
+           ]
+
+
+## Vacancies Collection [/backend/v1/vacancies/]
+
+### List hotels nearby [POST]
+
+The results for every provider are to be found when new GET request is issued
+to the provided links. In case of HB there are possibly many of them - for
+every destination. This allows for faster display of the first result.
+There is a timeout of 500 seconds until which the results of the background
+jobs must be retrieved - on the provided urls.
+
+The full responses can also arrive in the `vacancies` key. Its format is the same as
+of the GET call (`/backend/v1/vacancies/{hexa-id}`). This will happen for cached results.
+The results there will be merged for all providers and locations/destinations.
+
+If the `select` parameter is used, the `lat,lon` params are not used and can be ommited.
+
+### Hotelbeds
+* total number of rooms is returned in `results[x].meta_data.rooms_available`
+
+
++ Request (application/json)
+
+        {
+            "start_date": "2015-12-01",
+            "end_date": "2015-12-02",
+            "room_guests": {
+                "adults": 2,
+                "children_ages": [
+                    // or null
+                    2,
+                    4
+                ]
+            },
+            "lat": 37.786361,
+            "lng": -122.404417,
+            "radius": 20,
+            "select": "http://localhost:8000/backend/v1/select/2"
+        }
+
+
++ Response 200 (application/json)
+
+    + Body
+            {
+                "bg_jobs": [
+                    "http://localhost:8000/backend/v1/vacancies/ad4157f7-4adc-497a-b684-6eb0a3bd25d0",
+                    "http://localhost:8000/backend/v1/vacancies/ec14680e-9d00-4645-9563-882a6a32918e",
+                    "http://localhost:8000/backend/v1/vacancies/ec630e3d-be5e-44bf-831e-48377d327f9e",
+                    "http://localhost:8000/backend/v1/vacancies/9c048c87-634f-4055-88ec-3218c3f70416",
+                    "http://localhost:8000/backend/v1/vacancies/5427816d-2fb1-47d5-a947-fe43f7fd512b"
+                ],
+                "vacancies": null
+            }
+
+
+## Vacancies Collection [/backend/v1/vacancies/{hexa-id}]
+
+Obtain the result of the background job - the results will disappear in 500 seconds.
+
+* When the result is not available, the response will return HTTP_204_NO_CONTENT.
+* When the job id can't be found HTTP_404_NOT_FOUND is returned.
+* If wrong start date is entered (yesterday) HTTP_400_BAD_REQUEST is returned, info bellow.
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "start_date": "2015-12-01",
+                "end_date": "2015-12-02",
+                "room_guests": {
+                    "adults": 2,
+                    "children_ages": [
+                        2,
+                        4
+                    ]
+                },
+                "results": [
+                    {
+                        "price_min": 168.05,
+                        "price_max": 173.46,
+                        "currency": "USD",
+                        "meta_data": {
+                            "rooms_available": 4
+                        },
+                        "reservation_token": "abcdefghijklmnopqrstuvwxy",
+                        "purchase_token": "1234567890A",
+                        "hotel": {
+                            "id": "14977",
+                            "created": "2015-10-01T12:44:25.845000Z",
+                            "updated": "2015-10-01T12:44:25.845000Z",
+                            "name": "Days Inn San Francisco International Airport West",
+                            "description": "Located in scenic city of San Bruno, this Hotel near San Francisco International Airport West is an intimate hotel in the heart of the San Francisco Bay Area. Just minutes from San Francisco International Airport, this contemporary hotel offers a prime location, exceptional services and a warm, relaxed ambiance that makes you feel at home in the Bay Area. Whether you are traveling for vacation or business, you'll enjoy modern lifestyle amenities, extended-stay luxuries and unsurpassed value that deliver a remarkable hotel experience near San Francisco airport.",
+                            "location": {
+                                "lat": 37.61196259,
+                                "lng": -122.4027817
+                            },
+                            "address": {
+                                "line_1": "1550 EL CAMINO REAL",
+                                "city": "SAN FRANCISCO",
+                                "line_2": "",
+                                "zip": "94066",
+                                "state": "CA",
+                                "country": "US"
+                            },
+                            "timezone": "",
+                            "organization": "http://localhost:8000/backend/v1/organizations/6",
+                            "resource": "http://localhost:8000/backend/v1/hotels/14977",
+                            "provider": "hotelbeds",
+                            "rating": 2.5,
+                            "capacity": 0,
+                            "image_urls": [
+                                "http://www.hotelbeds.com/giata/23/230336/230336a_hb_l_001.jpg",
+                                "http://www.hotelbeds.com/giata/23/230336/230336a_hb_a_001.jpg",
+                                "http://www.hotelbeds.com/giata/23/230336/230336a_hb_w_001.jpg"
+                            ],
+                            "amenities": [
+                                {
+                                    "name": "NO Wheelchair-accessible",
+                                    "has_fee": false
+                                },
+                                {
+                                    "name": "Restaurant",
+                                    "has_fee": false
+                                },
+                                {
+                                    "name": "Non-smoking area",
+                                    "has_fee": false
+                                },
+                                {
+                                    "name": "Wi-fi",
+                                    "has_fee": false
+                                },
+                                {
+                                    "name": "Wired Internet",
+                                    "has_fee": false
+                                },
+                                    "name": "Hotel safe",
+                                    "has_fee": false
+                                },
+                                {
+                                    "name": "Continental breakfast",
+                                    "has_fee": false
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+
++ Response 400 (application/json)
+
+    For wrong start date, error message.
+
+    + Body
+
+            {
+                "code": "check_in_date_today",
+                "detail": "Check in date must be at least today",
+            }
+
+
+## Rooms Collection [/backend/v1/rooms/]
+
+Send content of `reservation_token` from previous call to `/backend/v1/vacancies/`
+If the `select` parameter is used, the maximum room price will be enforced.
+
+### EAN
+
+* payment types available for the hotel in `meta_data.payment_types`.
+* `meta_data.check_in_instructions` must be displayed if present
+
+### HB new
+
+* `meta_data.room_rate_comments` must be displayed for every room if present
+
+
+### Rooms in a hotel [POST]
+
++ Request (application/json)
+
+        {
+            "seller_site": "http://localhost:8000/backend/v1/hotels/28950",
+            "start_date": "2015-12-01",
+            "end_date": "2015-12-02",
+            "meta_data": {},
+            "reservation_token": "abcdefghijklmnopqrstuvwxy",
+            "select": "http://localhost:8000/backend/v1/select/2",
+            "room_guests": {
+                "adults": 2,
+                "children_ages": [ // or null
+                    2,
+                    4
+                ]
+            }
+        }
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "start_date": "2015-12-01",
+                "end_date": "2015-12-02",
+                "meta_data": {
+                    "terms_conditions": "http://travel.ian.com/index.jsp?pageName=userAgreement&locale=en_US&cid=055505",
+                    "supplier": {
+                        "name": "Travelscape LLC or Vacationspot SL"
+                    },
+                    "payment_types": {
+                        "BC": "BC Card",
+                        "VI": "Visa",
+                        "CA": "Master Card",
+                        "DC": "DINERS CLUB INTERNATIONAL",
+                        "AX": "American Express",
+                        "DS": "Discover",
+                        "JC": "JCB"
+                    },
+                    "check_in_instructions": "",
+                    "hotel_policy": "You must present a photo ID when checking in. Your credit card is charged at the time you book. Bed type and smoking preferences are not guaranteed.Your reservation is prepaid and is guaranteed for late arrival. The total charge includes all room charges and taxes, as well as fees for access and booking. Any incidental charges such as parking, phone calls, and room service will be handled directly between you and the property."
+                },
+                "reservation_token": "abcdefghijklmnopqrstuvwxy",
+                "hotel": "http://localhost:8000/backend/v1/hotels/25",
+                "room_guests": {
+                    "adults": 2,
+                    "children_ages": [
+                        2,
+                        4
+                    ]
+                },
+                "results": [
+                    {
+                        "price": {
+                            "total": 343.75,
+                            "currency": "USD",
+                            "fees": {
+                                "surcharges": [
+                                    {
+                                        "name": "Service Fee",
+                                        "amount": 33.14
+                                    },
+                                    {
+                                        "name": "Hotel Occupancy and Sales Tax",
+                                        "amount": 4.14
+                                    },
+                                    {
+                                        "name": "Tax Recovery Charges and Service Fees",
+                                        "amount": 33.5
+                                    }
+                                ],
+                                "hotel_fees": [
+                                    {
+                                        "name": "MandatoryFee",
+                                        "amount": 4.0
+                                    }
+                                ]
+                            },
+                            "nightly_rate_total": 279.0
+                        },
+                        "room_type": "One King Bed Study Non Smoking",
+                        "cancellation_info": {
+                            "policy": "This rate is non-refundable and cannot be changed or cancelled - if you do choose to change or cancel this booking you will not be refunded any of the payment.",
+                            "refundable": false,
+                        },
+                        "meta_data": {
+                            "rooms_available": 0,
+                            "max_occupancy_per_room": 2,
+                            "room_rate_disclamer": "The room rates listed are for double occupancy per room unless otherwise stated and exclude tax recovery charges and service fees."
+                        },
+                        "reservation_token": "abcdefghijklmnopqrstuvwxy"
+                    },
+                    {
+                        "price": {
+                            "total": 343.75,
+                            "currency": "USD",
+                            "fees": {
+                                "surcharges": [
+                                    {
+                                        "name": "Service Fee",
+                                        "amount": 33.14
+                                    }
+                                    {
+                                        "name": "Tax Recovery Charges and Service Fees",
+                                        "amount": 33.5
+                                    }
+                                ],
+                                "hotel_fees": []
+                            },
+                            "nightly_rate_total": 279.0
+                        },
+                        "room_type": "2 QUEEN BEDS NONSMOKING",
+                        "cancellation_info": {
+                            "policy": "This rate is non-refundable and cannot be changed or cancelled - if you do choose to change or cancel this booking you will not be refunded any of the payment.",
+                            "refundable": false,
+                        },
+                        "meta_data": {
+                            "rooms_available": 0,
+                            "max_occupancy_per_room": 4,
+                            "room_rate_disclamer": "The room rates listed are for double occupancy per room unless otherwise stated and exclude tax recovery charges and service fees."
+                        },
+                        "reservation_token": "abcdefghijklmnopqrstuvwxy"
+                    }
+                ]
+            }
+            
+
+
+## Room Collection [/backend/v1/rooms/detail/]
+
+This call if implemented will return uptodate availability & price
+reducing possibility of failed booking.
+
+Send content of `reservation_token` from previous call to `/backend/v1/rooms/`
+and the `reservation_token` of the selected room in `room_reservation_token`.
+
+### Hotelbeds
+
+- will always return HTTP_204_NO_CONTENT, noop
+
+### Hotelbeds NEW API
+
+- call this, may return uptodate info or HTTP_204_NO_CONTENT if nothing happened, noop
+
+### EAN
+
+- in case the room is not available, the response will contain no rooms info.
+
+### Room data confirming prices & availability. [POST]
+
++ Request (application/json)
+
+        {
+            "seller_site": "http://localhost:8000/backend/v1/hotels/28950",
+            "start_date": "2015-12-01",
+            "end_date": "2015-12-02",
+            "room_reservation_token": "short example...",
+            "reservation_token": "abcdefghijklmnopqrstuvwxy",
+            "room_guests": {
+                "adults": 2,
+                "children_ages": [ // or null
+                    2,
+                    4
+                ]
+            }
+        }
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "start_date": "2015-12-01",
+                "end_date": "2015-12-02",
+                "meta_data": {
+                    "supplier": {
+                        "name": "Travelscape LLC or Vacationspot SL"
+                    },
+                    "terms_conditions": "http://travel.ian.com/index.jsp?pageName=userAgreement&locale=en_US&cid=496984",
+                    "check_in_instructions": "<p><b>Know Before You Go</b> <br /><ul>  <li>Children 17 years old and younger stay free when occupying the parent or guardian's room, using existing bedding. </li><li>The property has connecting/adjoining rooms, which are subject to availability and can be requested by contacting the property using the number on the booking confirmation. </li><li>Guests can arrange to bring pets by contacting the property directly, using the contact information on the booking confirmation. </li>  </ul></p><p><b>Fees</b> <br /><p>The following fees and deposits are charged by the property at time of service, check-in, or check-out. </p> <ul> <li>Breakfast fee: USD 23.95 per person (approximately)</li> <li>Fee for in-room wireless Internet: USD 9.95 per 24-hour period (rates may vary)</li>     <li>Self parking fee: USD 25.00 per night (in/out privileges)</li> <li>Valet parking fee: USD 30 per night (in/out privileges)</li>          </ul> <p>The above list may not be comprehensive. Fees and deposits may not include tax and are subject to change. </p></p>"
+                    "hotel_policy": "You must present a photo ID when checking in. Your credit card is charged at the time you book. Bed type and smoking preferences are not guaranteed.Your reservation is prepaid and is guaranteed for late arrival. The total charge includes all room charges and taxes, as well as fees for access and booking. Any incidental charges such as parking, phone calls, and room service will be handled directly between you and the property."
+                },
+                "reservation_token": "abcdefghijklmnopqrstuvwxy",
+                "hotel": "http://localhost:8000/backend/v1/hotels/28950",
+                "room_guests": {
+                    "adults": 2,
+                    "children_ages": [
+                        2,
+                        4
+                    ]
+                },
+                "results": [
+                    {
+                        "price": {
+                            "total": 581.22,
+                            "currency": "USD",
+                            "fees": {
+                                "surcharges": [
+                                    {
+                                        "amount": 82.22,
+                                        "name": "Tax Recovery Charges and Service Fees"
+                                    }
+                                ],
+                                "hotel_fees": []
+                            },
+                            "nightly_rate_total": 499.0
+                        },
+                        "room_type": "Traditional Room",
+                        "cancellation_info": {
+                            "policy": "This rate is non-refundable and cannot be changed or cancelled - if you do choose to change or cancel this booking you will not be refunded any of the payment.",
+                            "refundable": false
+                        },
+                        "meta_data": {
+                            "rooms_available": 238,
+                            "max_occupancy_per_room": 4,
+                            "room_rate_disclamer": "The room rates listed are for double occupancy per room unless otherwise stated and exclude tax recovery charges and service fees.",
+                        },
+                        "reservation_token": "abcdefghijklmnopqrstuvwxy"
+                    }
+                ]
+            }
+
+
+## Buy Collection [/backend/v1/buy/]
+
+User must be logged in or 403 status and `{"detail":"Authentication credentials were not provided."}` is returned.
+
+Send content of `reservation_token` from previous call to `/backend/v1/rooms/`
+
+The `buyer_airports_airport` can be obtained from `/backend/v1/airport-search/{name}`.
+The `payment_card` comes from '/backend/v1/{user}/organizations'.
+
+### Hotelbeds
+* requires some information about all the `guests`. Only one needs to have name and email, phone.
+
+### EAN
+
+* requires just one customer there in `guests`
+* `provider_data.check_in_instructions` must be displayed if present
+
+### Buy a room [POST]
+
++ Request (application/json)
+
+        {
+            "seller_hotel": "http://localhost:8000/backend/v1/hotels/28950",
+            "buyer_airports_airport": "http://localhost:8000/backend/v1/airports-airport/1",
+            "payment_method": {
+                "type": "airline_cc", // {airline_cc,invoice,customer_cc}
+                "payment_card": "http://localhost:8000/backend/v1/payment-card/1", // required for {airline_cc}
+                "buyer_organization": "http://localhost:8000/backend/v1/organizations/5", // required for {invoice,customer_cc}
+                "stripe_token": "xxxxxx" // required for {customer_cc}
+            }
+            "start_date": "2015-12-01",
+            "end_date": "2015-12-02",
+            "note": "",
+            "room_guests": {
+                "room_data": {
+                    "price": 250,
+                    "reservation_token": "abcdefghijklmnopqrstuvwxy"
+                },
+                "guests": [
+                    {
+                        "name": "Max Rockatanski with lot of names and longer than fifty characters",
+                        "email": "max@vault12.earth",
+                        "phone": "+420777777777",
+                        "pnr": "12345a"
+                    },
+                    {},
+                    {
+                        "child": true,
+                        "age": 2
+                    },
+                    {
+                        "child": true,
+                        "age": 4
+                    }
+                ]
+            },
+            "reservation_token": "abcdefghijklmnopqrstuvwxy"
+        }
+        
+
++ Response 200 (application/json)
+
+    + Body
+            {
+                "bg_job": "http://localhost:8000/backend/v1/buy/ad4157f7-4adc-497a-b684-6eb0a3bd25d0"
+            }
+
+
+
+## Buy result Collection [/backend/v1/buy/{hexa-id}]
+
+Obtain the result of the background job - the results will disappear in 500 seconds.
+
+* When the result is not available, the response will return HTTP_204_NO_CONTENT.
+* When the job id can't be found HTTP_404_NOT_FOUND is returned.
+* There can be various HTTP_400_BAD_REQUEST & HTTP_500_INTERNAL_SERVER_ERROR responses.
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "id": "10",
+                "resource": "http://localhost:8000/backend/v1/bookings/10",
+                "created": "2015-11-24T16:10:50.659330Z",
+                "updated": "2015-11-24T16:10:50.659354Z",
+                "start_date": "2015-12-01",
+                "end_date": "2015-12-02",
+                "buyer_airports_airport": "http://localhost:8000/backend/v1/airports-airport/1",
+                "buyer_organization": "http://localhost:8000/backend/v1/organizations/5",
+                "seller_hotel": {
+                    "resource": "http://localhost:8000/backend/v1/hotels/28950",
+                    "name": "Hotel San Francisco Financial District",
+                    "address": {
+                        "city": "SAN FRANCISCO",
+                        "zip": "94066",
+                        "country": "US",
+                        "state": "",
+                        "line_1": "1550 EL CAMINO REAL",
+                        "line_2": ""
+                    }
+                },
+                "price": {
+                    "total": 364.58,
+                    "currency": "USD",
+                    "fees": null,
+                    "nightly_rate_total": null
+                },
+                "reservation_number": "256-2032968",
+                "provider": "hotelbeds",
+                "provider_data": {
+                    "supplier": {
+                        "vat_number": "592952685",
+                        "name": "HOTELBEDS USA"
+                    },
+                    "purchase_token": "1234567890A",
+                    "board_type": "ROOM ONLY",
+                    "cancellation_info": [
+                        {
+                            "price": 0.0,
+                            "until": "2015-11-28T16:10:00Z"
+                        },
+                        {
+                            "price": 331.44,
+                            "until": "2015-12-01T23:59:59Z"
+                        }
+                    ],
+                    "seller_comments": [
+                        "- The person whose name is on the reservation must be at least 18\n                                years of age to check in.\n                                - Rollaway beds are available based upon availability for an additional fee of $25* +tax\n                                per day, payable locally.\n                                - Valet parking is based upon availability and at a fee.\n                                - Smoking is strictly prohibited in all guest rooms and public areas of the hotel. An\n                                automatic cleaning fee of $350* usd per night will be applied to guest rooms where smoke\n                                is detected.\n                                - Check in time is 3:00pm-Check out time is 12:00 noon.\n                                - All bookings will be on floors 5-13\n                                *Amount subject to change without notice*\n                                . Wheelchair-accessible YES. . The lobby is being refurbished. (2015/06/29 -\n                                2015/11/23).. The restaurant is closed. (2015/07/05 - 2015/09/20).. The business room is\n                                being refurbished. (2015/06/15 - 2015/08/15).\n                            "
+                    ],
+                    "room_type": "DOUBLE RUN OF HOUSE"
+                },
+                "user": "http://localhost:8000/backend/v1/users/1",
+                "room": {
+                    "room_type": "DOUBLE RUN OF HOUSE",
+                    "guest_name": "Max Rockatanski with lot of names and longer than fifty characters",
+                    "guest_email": "max@rockatanski.com",
+                    "guest_phone": "+420777777777",
+                    "guest_pnr": "123456",
+                    "adult_guests": 2,
+                    "child_ages": [2, 4]
+                },
+                "confirmation_url": "http://localhost:8000/backend/v1/vouchers/ce87f64b4f574e3795f9ed6a41f1e751",
+                "cancellation_info": [
+                    {
+                        "price": 0.0,
+                        "until": "2015-11-24T17:10:50.659330Z"
+                    },
+                    {
+                        "price": 0.0,
+                        "until": "2015-11-28T16:10:00Z"
+                    },
+                    {
+                        "price": 331.44,
+                        "until": "2015-12-01T23:59:59Z"
+                    }
+                ],
+                "note": ""
+            }
+
+
++ Response 400 (application/json)
+
+    In case room is no longer available and customer needs to be notified about this.
+    The same for `/backend/v1/guestbuy/`
+
+    + Body
+
+            {
+                "code": "room_unavailable",
+                "detail": "The room is no longer available, try another one please.",
+            }
+
+
++ Response 400 (application/json)
+
+    In case the session in Hotelbeds expired and it is no longer possible to buy the room
+    with these data. New `/backend/v1/rooms/` call needs to be started.
+
+    + Body
+
+            {
+                "code": "hb_session_expired",
+                "detail": "Session expired, please try again.",
+            }
+
+
+
+## GuestBuy Collection [/backend/v1/guestbuy/]
+
+Send content of `reservation_token` from a `/backend/v1/rooms/` call
+
+Very similar to `/backend/v1/buy/` with minor difference, that instead
+of `buyer_airports_airport` the `stripe_id` is sent.
+
+See the `/backend/v1/buy/` for more details about individual providers.
+
+### Buy a room [POST]
+
++ Request (application/json)
+
+        {
+            "seller_hotel": "http://localhost:8000/backend/v1/hotels/28950",
+            "start_date": "2015-12-01",
+            "end_date": "2015-12-02",
+            "stripe_id": "XXXXXXXXXXXX",
+            "note": "",
+            "room_guests": {
+                "room_data": {
+                    "price": 250,
+                    "reservation_token": "abcdefghijklmnopqrstuvwxy"
+                },
+                "guests": [
+                    {
+                        "name": "Max Rockatanski with lot of names and longer than fifty characters",
+                        "email": "max@vault12.earth",
+                        "phone": "+420777777777",
+                        "pnr": "12345a"
+                    },
+                    {},
+                    {
+                        "child": true,
+                        "age": 2
+                    },
+                    {
+                        "child": true,
+                        "age": 4
+                    }
+                ]
+            },
+            "reservation_token": "abcdefghijklmnopqrstuvwxy"
+        }
+        
++ Response 200 (application/json)
+
+    + Body
+    
+            {
+                "id": "10",
+                "resource": "http://localhost:8000/backend/v1/bookings/10",
+                "created": "2015-11-24T16:10:50.659330Z",
+                "updated": "2015-11-24T16:10:50.659354Z",
+                "start_date": "2015-12-01",
+                "end_date": "2015-12-02",
+                "buyer_airports_airport": null,
+                "buyer_organization": "http://localhost:8000/backend/v1/organizations/5",
+                "seller_hotel": {
+                    "resource": "http://localhost:8000/backend/v1/hotels/28950",
+                    "name": "Hotel San Francisco Financial District",
+                    "address": {
+                        "city": "SAN FRANCISCO",
+                        "zip": "94066",
+                        "country": "US",
+                        "state": "",
+                        "line_1": "1550 EL CAMINO REAL",
+                        "line_2": ""
+                    }
+                },
+                "price": {
+                    "total": 364.58,
+                    "currency": "USD",
+                    "fees": None,
+                    "nightly_rate_total": null
+                },
+                "reservation_number": "256-2032968",
+                "provider": "hotelbeds",
+                "provider_data": {
+                    "supplier": {
+                        "vat_number": "592952685",
+                        "name": "HOTELBEDS USA"
+                    },
+                    "purchase_token": "1234567890A",
+                    "board_type": "ROOM ONLY",
+                    "cancellation_info": [
+                        {
+                            "price": 0.0,
+                            "until": "2015-11-28T16:10:00Z"
+                        },
+                        {
+                            "price": 331.44,
+                            "until": "2015-12-01T23:59:59Z"
+                        }
+                    ],
+                    "seller_comments": [
+                        "- The person whose name is on the reservation must be at least 18\n                                years of age to check in.\n                                - Rollaway beds are available based upon availability for an additional fee of $25* +tax\n                                per day, payable locally.\n                                - Valet parking is based upon availability and at a fee.\n                                - Smoking is strictly prohibited in all guest rooms and public areas of the hotel. An\n                                automatic cleaning fee of $350* usd per night will be applied to guest rooms where smoke\n                                is detected.\n                                - Check in time is 3:00pm-Check out time is 12:00 noon.\n                                - All bookings will be on floors 5-13\n                                *Amount subject to change without notice*\n                                . Wheelchair-accessible YES. . The lobby is being refurbished. (2015/06/29 -\n                                2015/11/23).. The restaurant is closed. (2015/07/05 - 2015/09/20).. The business room is\n                                being refurbished. (2015/06/15 - 2015/08/15).\n                            "
+                    ],
+                    "room_type": "DOUBLE RUN OF HOUSE"
+                },
+                "user": null,
+                "room": {
+                    "room_type": "DOUBLE RUN OF HOUSE",
+                    "guest_name": "Max Rockatanski with lot of names and longer than fifty characters",
+                    "guest_email": "max@rockatanski.com",
+                    "guest_phone": "+420777777777",
+                    "guest_pnr": "123456"
+                },
+                "confirmation_url": "http://localhost:8000/backend/v1/vouchers/ce87f64b4f574e3795f9ed6a41f1e751",
+                "cancellation_info": [
+                    {
+                        "price": 0.0,
+                        "until": "2015-11-24T17:10:50.659330Z"
+                    },
+                    {
+                        "price": 0.0,
+                        "until": "2015-11-28T16:10:00Z"
+                    },
+                    {
+                        "price": 331.44,
+                        "until": "2015-12-01T23:59:59Z"
+                    }
+                ],
+                "note": ""
+            }
+
++ Response 406 (application/json)
+
+    Transaction was declined because of legitimate reasons, such as invalid card details, not enought funds, etc...
+    It should be safe to display "detail" value to a user.
+
+    + Body
+
+            {
+                "code": "card_declined",
+                "detail": "Your card was declined."
+            }
+
++ Response 500 (application/json)
+
+    Transaction was declined because of internal server issues, such as our bug, stripe down, etc...
+    "detail" will always be "Internal system error." We should log and fix that. This is most-likely our BE issue.
+
+    + Body
+
+            {
+                "code": "purchase_error",
+                "detail": "Internal system error."
+            }
+
+
+## Select Buy Collection [/backend/v1/select-buy/]
+
+The same as regular Buy endpoint, except no `payment_method` and no `buyer_airports_airport` is sent.
+
+`stripe_token` must be set in case of customer paying with his own CC which is indicated in select enpoint.
+
+Response is the same as regular `/buy/` endpoint - it's background job
+
+### Buy a room [POST]
+
++ Request (application/json)
+
+        {
+            "select": "http://localhost:8000/backend/v1/select/2",
+            "seller_hotel": "http://localhost:8000/backend/v1/hotels/28950",
+            "stripe_token": "xxxxxx" // required for {customer_cc} payment type select
+            "start_date": "2015-12-01",
+            "end_date": "2015-12-02",
+            "room_guests": {
+                "room_data": {
+                    "price": 250,
+                    "reservation_token": "abcdefghijklmnopqrstuvwxy"
+                },
+                "guests": [
+                    {
+                        "name": "Max Rockatanski with lot of names and longer than fifty characters",
+                        "email": "max@vault12.earth",
+                        "phone": "+420777777777",
+                        "pnr": "12345a"
+                    },
+                    {},
+                    {
+                        "child": true,
+                        "age": 2
+                    },
+                    {
+                        "child": true,
+                        "age": 4
+                    }
+                ]
+            },
+            "reservation_token": "abcdefghijklmnopqrstuvwxy"
+        }
+
+
+
+## Booking cancellation [/backend/v1/bookings/{id}/cancel/]
+
+To cancel a booking just issue a POST. Successfull cancellation if exception is not raised is indicated by
+status:`canceled`
+
+Response is the same as booking detail. In case of 500 it's necessary to display the error in response to the user.
+
+
+
+## Select list  [/backend/v1/select/]
+
+Receive all of the Selects user has access to. [GET]
+
++ Response 200 (application/json)
+
+    + Body
+
+            [
+                    {
+                            "bookings_total": 0.0,
+                            "valid_till": null,
+                            "nights": 1,
+                            "resource": "http://localhost:8000/backend/v1/select/8",
+                            "payment_method": "airline_cc",
+                            "bookings_count": 0,
+                            "internal_note": "",
+                            "public_note": "",
+                            "airport": {
+                                "city": "Millbrae",
+                                "utc_offset": -420,
+                                "resource": "http://localhost:8000/backend/v1/airports-airport/2",
+                                "name": "San Francisco Intl",
+                                "iata": "SFO",
+                                "location": {
+                                    "lat": 37.618972,
+                                    "lng": -122.374889
+                                },
+                                "timezone": "America/Los_Angeles",
+                                "id": "2"
+                            },
+                            "valid_from": null,
+                            "radius": 10,
+                            "user": "http://localhost:8000/backend/v1/users/9",
+                            "organization": {
+                                "image": "https://s3-us-west-1.amazonaws.com/assets.roomstorm.com/200/rs.png",
+                                "name": "Airline Company"
+                            },
+                            "hash_url": "http://localhost:8000/guest/#/select/agz58",
+                            "max_bookings": null,
+                            "max_room_price": 200.0,
+                            "hash": "agz58"
+                    }
+            ]
+
+
+### Create new Select [POST]
+
+If no `date_till` is sent or is `null`, then it will be set to the next day's midnight in
+the airports' timezone, stored as UTC.
+If `null` or nothing is sent instead of the `valid_from` value, then servers' current time will be used.
+
+
+
++ Request (application/json)
+
+        {
+                "nights": 1,
+                "payment_method": "airline_cc",
+                "note": "post new",
+                "airport": "http://localhost:8000/backend/v1/airports-airport/2",
+                "radius": 10,
+                "organization": "http://localhost:8000/backend/v1/organizations/5",
+                "max_room_price": 100.0
+        }
+
+
++ Response 201 (application/json)
+
+    + Headers
+
+        Location: http://localhost:8000/backend/v1/select/dv5kq
+
+    + Body
+            {
+                    "bookings_total": 0.0,
+                    "nights": 1,
+                    "resource": "http://localhost:8000/backend/v1/select/8",
+                    "payment_method": "airline_cc",
+                    "bookings_count": 0,
+                    "internal_note": "post new",
+                    "public_note": "",
+                    "airport": {
+                        "city": "Millbrae",
+                        "utc_offset": -420,
+                        "resource": "http://localhost:8000/backend/v1/airports-airport/2",
+                        "name": "San Francisco Intl",
+                        "iata": "SFO",
+                        "location": {
+                            "lat": 37.618972,
+                            "lng": -122.374889
+                        },
+                        "timezone": "America/Los_Angeles",
+                        "id": "2"
+                    },
+                    "valid_from": "2016-09-08T18:09:34.583783Z",
+                    "valid_till": "2016-09-09T07:00:00.000000Z",
+                    "radius": 10,
+                    "user": "http://localhost:8000/backend/v1/users/9",
+                    "organization": {
+                        "image": "https://s3-us-west-1.amazonaws.com/assets.roomstorm.com/200/rs.png",
+                        "name": "Airline Company"
+                    },
+                    "hash_url": "http://localhost:8000/guest/#/select/agz58",
+                    "max_bookings": null,
+                    "max_room_price": 100.0,
+                    "hash": "agz58"
+            }
+
+
+## Select detail  [/backend/v1/select/{id}]
+
+Receive info about airline Select data. If the `payment_method` value is `customer_cc` the field
+`payment_method.stripe_token` in `/backend/v1/buy/` endpoint must be sent. Also PATCH can be used.
+When DELETE method is used, 204 response is returned upon successful deletion.
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                    "bookings_total": 0.0,
+                    "valid_till": null,
+                    "nights": 1,
+                    "resource": "http://localhost:8000/backend/v1/select/8",
+                    "payment_method": "airline_cc",
+                    "bookings_count": 0,
+                    "internal_note": "",
+                    "public_note": "",
+                    "airport": {
+                        "city": "Millbrae",
+                        "utc_offset": -420,
+                        "resource": "http://localhost:8000/backend/v1/airports-airport/2",
+                        "name": "San Francisco Intl",
+                        "iata": "SFO",
+                        "location": {
+                            "lat": 37.618972,
+                            "lng": -122.374889
+                        },
+                        "timezone": "America/Los_Angeles",
+                        "id": "2"
+                    },
+                    "valid_from": null,
+                    "radius": 10,
+                    "user": "http://localhost:8000/backend/v1/users/9",
+                    "organization": {
+                        "image": "https://s3-us-west-1.amazonaws.com/assets.roomstorm.com/200/rs.png",
+                        "name": "Airline Company"
+                    },
+                    "hash_url": "http://localhost:8000/guest/#/select/agz58",
+                    "max_bookings": null,
+                    "max_room_price": 200.0,
+                    "hash": "agz58"
+            }
+
+
+## Hotels local inventory [/backend/v1/hotels/1/local-inventory/]
+
+### Returns all local inventory for this hotel [GET]
+
+
++ Response 200 (application/json)
+
+    + Body
+
+            [
+                    {
+                            "resource": "http://localhost:8000/backend/v1/local-inventory/3",
+                            "min_guests": 1,
+                            "price": 231.44,
+                            "hotel": "http://localhost:8000/backend/v1/hotels/7",
+                            "user": "http://localhost:8000/backend/v1/users/1",
+                            "rooms_available": 2,
+                            "currency": "USD",
+                            "board_type": "",
+                            "date": "2016-10-02",
+                            "max_guests": 2,
+                            "room_type": "nice double bed"
+                    },
+                    {
+                            "resource": "http://localhost:8000/backend/v1/local-inventory/4",
+                            "min_guests": 1,
+                            "price": 331.44,
+                            "hotel": "http://localhost:8000/backend/v1/hotels/7",
+                            "rooms_available": 2,
+                            "currency": "USD",
+                            "board_type": "",
+                            "date": "2016-10-02",
+                            "max_guests": 2,
+                            "room_type": "nice double bed"
+                    }
+            ]
+
+
+### Create new Inventory [POST]
+
+
++ Request (application/json)
+
+        {
+                'min_guests': 1,
+                'price': 331.44,
+                'rooms_available': 3,
+                'currency': 'USD',
+                'board_type': '',
+                'date': '2016-10-02',
+                'max_guests': 2,
+                'room_type': 'comfy bed'
+        }
+
+
++ Response 201 (application/json)
+
+    + Headers
+
+        Location: http://localhost:8000/backend/v1/local-inventory/5
+
+    + Body
+            {
+                    "resource": "http://localhost:8000/backend/v1/local-inventory/5",
+                    "min_guests": 1,
+                    "price": 331.44,
+                    "hotel": "http://localhost:8000/backend/v1/hotels/7",
+                    "rooms_available": 3,
+                    "currency": "USD",
+                    "board_type": "",
+                    "date": "2016-10-02",
+                    "max_guests": 2,
+                    "room_type": "comfy bed"
+            }
+
+
+
+## Local inventory [/backend/v1/local-inventory/{id}]
+
+When DELETE method is used, 204 response is returned upon successful deletion.
+
+### Returns local inventory detail [GET]
+
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                    "resource": "http://localhost:8000/backend/v1/local-inventory/1",
+                    "min_guests": 1,
+                    "price": 331.44,
+                    "hotel": "http://localhost:8000/backend/v1/hotels/8",
+                    "rooms_available": 3,
+                    "currency": "USD",
+                    "board_type": "",
+                    "date": "2016-10-02",
+                    "max_guests": 2,
+                    "room_type": "smelly double bed"
+            }
+
+
+### Partialy update the inventory and returns new data the same as with GET [PATCH]
+
+
++ Request (application/json)
+
+    + Body
+
+            {
+                    "min_guests": 2,
+                    "price": 231.44,
+                    "max_guests": 5,
+                    "room_type": "double bed"
+            }
+
+
+
+## Errors endpoint [/backend/v1/errors/{error_code}]
+
+Without the `error_code` param the result will be all known error codes.
+
++ Response 200 (application/json)
+
+    + Body
+
+            [
+                "check_in_date_today", "provider_exception", "payment_info_incomplete",
+                "ean_provider_timeout", "card_declined", "purchase_error", "room_unavailable",
+                "ean_empty_results", "bg_job_error",
+                "booking_validation_err", "hb_session_expired", "ean_pending_booking",
+                "hb_insufficient_space", "hb_cancel_error", "code_ean_provider_booking_error"
+            ]
+
+
+To simulate error response for an `error_code` use this endpoint.
+Example:
+
++ Response 400 (application/json)
+
+    + Body
+
+            {
+                "code": "check_in_date_today",
+                "detail": "Check in date must be at least today"
+            }
