@@ -1528,6 +1528,187 @@ When DELETE method is used, 204 response is returned upon successful deletion.
             }
 
 
+## Booking statistics [/backend/v1/stats/{?airport,month}]
+
+Returns booking stats for a month [GET]
+
++ Parameters
+    + airport - bookings only for this airport, example: http://localhost:8000/backend/v1/airports-airport/2
+    + month - some date - the whole month of this date will be used for stats, example: 2016-01-15 format `YYYY-MM-DD`
+
++ Response 200 (application/json)
+
+    + Body
+
+            {
+                "data": {
+                    "total_spent": 500.0,
+                    "bookings": 2,
+                    "by_hotel": [
+                        {
+                            "bookings": 1,
+                            "hotel": "http://localhost:8000/backend/v1/hotels/5",
+                            "spent": 150.0
+                        },
+                        {
+                            "bookings": 1,
+                            "hotel": "http://localhost:8000/backend/v1/hotels/6",
+                            "spent": 350.0
+                        }
+                    ],
+                    "timeseries": [
+                        {
+                            "bookings": 0,
+                            "ts": 1485907200,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1485993600,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486080000,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486166400,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486252800,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 1,
+                            "ts": 1486339200,
+                            "spent": 350.0
+                        },
+                        {
+                            "bookings": 1,
+                            "ts": 1486425600,
+                            "spent": 150.0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486512000,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486598400,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486684800,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486771200,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486857600,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1486944000,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487030400,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487116800,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487203200,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487289600,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487376000,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487462400,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487548800,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487635200,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487721600,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487808000,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487894400,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1487980800,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1488067200,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1488153600,
+                            "spent": 0
+                        },
+                        {
+                            "bookings": 0,
+                            "ts": 1488240000,
+                            "spent": 0
+                        }
+                    ],
+                    "by_agent": [
+                        {
+                            "bookings": 2,
+                            "spent": 500.0,
+                            "agent": "http://localhost:8000/backend/v1/users/9"
+                        }
+                    ]
+                }
+            }
+
+
 
 ## Errors endpoint [/backend/v1/errors/{error_code}]
 
