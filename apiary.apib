@@ -1532,6 +1532,8 @@ When DELETE method is used, 204 response is returned upon successful deletion.
 
 Returns booking stats for a month [GET]
 
+The `by_agent` and `by_hotel` are ordered by the `spent` column DESC.
+
 + Parameters
     + airport - bookings only for this airport, example: http://localhost:8000/backend/v1/airports-airport/2
     + month - some date - the whole month of this date will be used for stats, example: 2016-01-15 format `YYYY-MM-DD`
@@ -1544,16 +1546,23 @@ Returns booking stats for a month [GET]
                 "data": {
                     "total_spent": 500.0,
                     "bookings": 2,
-                    "by_hotel": [
+                    "by_agent": [
                         {
-                            "bookings": 1,
-                            "hotel": "http://localhost:8000/backend/v1/hotels/5",
-                            "spent": 150.0
-                        },
+                            "bookings": 2,
+                            "spent": 500.0,
+                            "agent": "http://localhost:8000/backend/v1/users/9"
+                        }
+                    ],
+                    "by_hotel": [
                         {
                             "bookings": 1,
                             "hotel": "http://localhost:8000/backend/v1/hotels/6",
                             "spent": 350.0
+                        },
+                        {
+                            "bookings": 1,
+                            "hotel": "http://localhost:8000/backend/v1/hotels/5",
+                            "spent": 150.0
                         }
                     ],
                     "timeseries": [
@@ -1696,13 +1705,6 @@ Returns booking stats for a month [GET]
                             "bookings": 0,
                             "ts": 1488240000,
                             "spent": 0
-                        }
-                    ],
-                    "by_agent": [
-                        {
-                            "bookings": 2,
-                            "spent": 500.0,
-                            "agent": "http://localhost:8000/backend/v1/users/9"
                         }
                     ]
                 }
