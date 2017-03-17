@@ -1,2 +1,4 @@
 # roomstorm-api
-roomstorm api description
+
+api description for http://www.roomstorm.com/
+
